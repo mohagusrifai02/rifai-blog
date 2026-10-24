@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4 {
+    display: block;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.article-content h1 {
+    font-size: 2rem;
+}
+
+.article-content h2 {
+    font-size: 1.5rem;
+}
+
+.article-content h3,
+.article-content h4 {
+    font-size: 1.25rem;
+}
+
+.article-content ol {
+    list-style-type: decimal;
+}
+
+.article-content ul {
+    list-style-type: disc;
+}
+
+.article-content ol,
+.article-content ul {
+    display: block;
+    padding-left: 1.75rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.article-content li {
+    display: list-item;
+    margin-bottom: 0.35rem;
+}
