@@ -181,8 +181,10 @@
                             {{-- Thumbnail --}}
                             <div class="h-32 w-full shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-24 sm:w-36">
                                 @if ($article->image)
-                                    <img
-                                        src="{{ asset('storage/' . $article->image) }}"
+                                    <img                                      
+                                        src="{{ \Illuminate\Support\Str::startsWith($article->image, ['http://', 'https://'])
+                                            ? $article->image
+                                            : asset('storage/' . $article->image) }}"
                                         alt="{{ $article->title }}"
                                         class="h-full w-full object-cover"
                                         loading="lazy"

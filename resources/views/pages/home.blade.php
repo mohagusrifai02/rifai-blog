@@ -77,7 +77,9 @@
                             class="block overflow-hidden bg-slate-100">
                             @if ($featured->image)
                                 <img
-                                    src="{{ asset('storage/' . $featured->image) }}"
+                                    src="{{ \Illuminate\Support\Str::startsWith($featured->image, ['http://', 'https://'])
+                                    ? $featured->image
+                                    : asset('storage/' . $featured->image) }}"
                                     alt="{{ $featured->title }}"
                                     class="h-64 w-full object-cover transition duration-500 hover:scale-105 md:h-full md:min-h-80"
                                 >
@@ -131,7 +133,9 @@
                                 class="block overflow-hidden bg-slate-100">
                                 @if ($article->image)
                                     <img
-                                        src="{{ asset('storage/' . $article->image) }}"
+                                        src="{{ \Illuminate\Support\Str::startsWith($article->image, ['http://', 'https://'])
+                                        ? $article->image
+                                        : asset('storage/' . $article->image) }}"
                                         alt="{{ $article->title }}"
                                         loading="lazy"
                                         class="h-52 w-full object-cover transition duration-500 group-hover:scale-105"

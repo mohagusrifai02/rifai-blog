@@ -10,6 +10,8 @@ use App\Models\Article;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Cloudinary\Api\Upload\UploadApi;
+use Cloudinary\Configuration\Configuration;
 
 class ArticleController extends Controller
 {
@@ -31,9 +33,14 @@ class ArticleController extends Controller
             $validated['content']
         );
 
-        if ($request->hasFile('image')){
-             $validated['image'] = $request->file('image')
-            ->store('articles', 'public');
+        if ($request->hasFile('image')) {
+            $uploaded = $this->uploadToCloudinary(
+                $request->file('image')->getRealPath(),
+                'articles/covers'
+            );
+
+            $validated['image'] = $uploaded['url'];
+            $validated['image_public_id'] = $uploaded['public_id'];
         }
 
         //Article::create($validated);
@@ -56,14 +63,13 @@ class ArticleController extends Controller
         ]);
     }
 
+    
     public function update(Request $request, string $slug): RedirectResponse
     {
-        //$article = Article::where('slug', $slug)->firstOrFail();
-
         $article = $request->user()
-        ->articles()
-        ->where('slug', $slug)
-        ->firstOrFail();
+            ->articles()
+            ->where('slug', $slug)
+            ->firstOrFail();
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -76,47 +82,74 @@ class ArticleController extends Controller
             $validated['content']
         );
 
+        $oldImage = $article->image;
+        $oldPublicId = $article->image_public_id;
+
         if ($request->hasFile('image')) {
-            $oldImage = $article->image;
+            $uploaded = $this->uploadToCloudinary(
+                $request->file('image')->getRealPath(),
+                'articles/covers'
+            );
 
-            $validated['image'] = $request->file('image')
-                ->store('articles', 'public');
-
-
-            if ($oldImage) {
-                Storage::disk('public')->delete($oldImage);
-            }
+            $validated['image'] = $uploaded['url'];
+            $validated['image_public_id'] = $uploaded['public_id'];
         } else {
             unset($validated['image']);
-
         }
 
-
+        // Simpan perubahan artikel terlebih dahulu.
         $article->update($validated);
 
-        return redirect()
-                ->route('dashboard')
-                ->with('success', 'Artikel berhasil diperbarui');
-    }
+        // Hapus gambar lama hanya setelah update berhasil.
+        if ($request->hasFile('image')) {
+            if ($oldPublicId) {
+                $this->cloudinaryConfig();
 
-    public function destroy(Request $request, string $slug): RedirectResponse
-    {
-        //$article = Article::where('slug', $slug)->firstOrFail();
-
-        $article = $request->user()
-        ->articles()
-        ->where('slug', $slug)
-        ->firstOrFail();
-
-        if ($article->image) {
-            Storage::disk('public')->delete($article->image);
+                (new UploadApi())->destroy($oldPublicId);
+            } elseif ($oldImage && !\Illuminate\Support\Str::startsWith(
+                $oldImage,
+                ['http://', 'https://']
+            )) {
+                // Membersihkan gambar lama yang masih tersimpan lokal.
+                Storage::disk('public')->delete($oldImage);
+            }
         }
 
+        return redirect()
+            ->route('dashboard')
+            ->with('success', 'Artikel berhasil diperbarui');
+    }
+
+    
+    public function destroy(Request $request, string $slug): RedirectResponse
+    {
+        $article = $request->user()
+            ->articles()
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        $image = $article->image;
+        $publicId = $article->image_public_id;
+
+        // Hapus artikel dari database terlebih dahulu.
         $article->delete();
 
+        // Hapus gambar dari Cloudinary jika memiliki public ID.
+        if ($publicId) {
+            $this->cloudinaryConfig();
+
+            (new UploadApi())->destroy($publicId);
+        } elseif ($image && !\Illuminate\Support\Str::startsWith(
+            $image,
+            ['http://', 'https://']
+        )) {
+            // Hapus gambar lama yang masih berupa path lokal.
+            Storage::disk('public')->delete($image);
+        }
+
         return redirect()
-                ->route('home')
-                ->with('success', 'Artikel berhasil dihapus');        
+            ->route('home')
+            ->with('success', 'Artikel berhasil dihapus');
     }
 
     public function show(Request $request, string $slug): View
@@ -152,19 +185,56 @@ class ArticleController extends Controller
     }
 
     
+    
     public function uploadContentImage(Request $request)
     {
-        $validated = $request->validate([
+        $request->validate([
             'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        $path = $request->file('image')
-            ->store('articles/content', 'public');
+        $uploaded = $this->uploadToCloudinary(
+            $request->file('image')->getRealPath(),
+            'articles/content'
+        );
 
         return response()->json([
-            'url' => asset('storage/' . $path),
+            'url' => $uploaded['url'],
         ]);
     }
+
+
+    
+    private function cloudinaryConfig(): void
+    {
+        Configuration::instance([
+            'cloud' => [
+                'cloud_name' => config('services.cloudinary.cloud_name'),
+                'api_key' => config('services.cloudinary.api_key'),
+                'api_secret' => config('services.cloudinary.api_secret'),
+            ],
+            'url' => [
+                'secure' => true,
+            ],
+        ]);
+    }
+
+    private function uploadToCloudinary(
+        string $filePath,
+        string $folder
+    ): array {
+        $this->cloudinaryConfig();
+
+        $result = (new UploadApi())->upload($filePath, [
+            'folder' => $folder,
+            'resource_type' => 'image',
+        ]);
+
+        return [
+            'url' => $result['secure_url'],
+            'public_id' => $result['public_id'],
+        ];
+    }
+
 
     //html purifier
     private function sanitizeHtml(string $html): string
@@ -203,11 +273,7 @@ class ArticleController extends Controller
 
         $purifier = new HTMLPurifier($config);
 
-        $cleanHtml = $purifier->purify($html);
-
-
-        return $cleanHtml;
-
-                return $purifier->purify($html);
-            }
+        
+        return $purifier->purify($html);
+    }
 }

@@ -83,7 +83,9 @@
         @if ($article->image)
             <div class="px-4 pt-6 sm:px-10 sm:pt-8">
                 <img
-                    src="{{ asset('storage/' . $article->image) }}"
+                    src="{{ \Illuminate\Support\Str::startsWith($article->image, ['http://', 'https://'])
+                        ? $article->image
+                        : asset('storage/' . $article->image) }}"
                     alt="{{ $article->title }}"
                     class="max-h-[520px] w-full rounded-xl bg-slate-100 object-cover"
                 >
